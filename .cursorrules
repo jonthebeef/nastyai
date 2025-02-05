@@ -1,0 +1,39 @@
+# Cursor Rules for Nasty AI Project
+
+## Critical Rule: Configuration Preservation
+- **DO NOT** modify any existing configurations on the Pi without explicit permission
+- The project's purpose is to READ and USE existing configurations, NOT to change them
+- Any configuration changes require EXPRESS permission from the user
+
+## Workflow Rules
+1. When working with configurations:
+   - ✅ READ existing configurations
+   - ✅ USE existing configurations as-is
+   - ✅ BUILD new functionality around existing configurations
+   - ❌ DO NOT modify existing configurations
+   - ❌ DO NOT create new configurations without permission
+
+2. If changes might be needed:
+   - First explain WHY changes might be needed
+   - Present the proposed changes in detail
+   - Wait for EXPLICIT approval
+   - Only proceed if given CLEAR permission
+   - Document any approved changes
+
+3. Working with existing systems:
+   - Understand the current setup first
+   - Use existing paths and structures
+   - Respect existing permissions and ownership
+   - Preserve existing functionality
+
+## Project Focus
+- Primary goal is to build a command center that works WITH existing configurations
+- Focus on reading and interpreting existing setups
+- Add functionality without modifying core configurations
+- Maintain compatibility with existing services and setups
+
+## Remember
+- When in doubt, ASK first
+- Better to ask permission than to break existing functionality
+- Preserve and protect the existing infrastructure
+- Changes should only be made with clear understanding and explicit approval 

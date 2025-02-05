@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mac Command Center Dashboard</title>
+    <style>
+        /* Basic styles for the dashboard */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #1e1e1e;
+            color: #fff;
+        }
+        #container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        /* Header styles */
+        header {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: #00ff00;
+        }
+        /* Chat panel styles */
+        #chat {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        #commandInput {
+            width: calc(100% - 120px);
+            padding: 10px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #1e1e1e;
+            color: #fff;
+            font-family: 'Consolas', monospace;
+        }
+        #sendCommand {
+            width: 100px;
+            padding: 10px;
+            margin-left: 10px;
+            background: #0066cc;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+        #sendCommand:hover {
+            background: #0077ee;
+        }
+        /* Terminal panel styles */
+        #terminal {
+            flex-grow: 1;
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Consolas', monospace;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 20px;
+        }
+        /* Control panel styles */
+        #controls {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #stopCommand {
+            padding: 10px 20px;
+            background: #cc0000;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+        }
+        #stopCommand:hover {
+            background: #ee0000;
+        }
+        /* Status indicator styles */
+        #status {
+            padding: 8px 15px;
+            border-radius: 4px;
+            background: #333;
+            color: #00ff00;
+        }
+        /* Terminal output styling */
+        .command-issued {
+            color: #00ff00;
+            font-weight: bold;
+            margin: 10px 0;
+            padding: 5px;
+            border-left: 3px solid #00ff00;
+        }
+        .command-output {
+            color: #ffffff;
+            margin: 5px 0;
+            padding-left: 10px;
+        }
+        .command-error {
+            color: #ff0000;
+            margin: 5px 0;
+            padding-left: 10px;
+        }
+        .command-finished {
+            color: #888;
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid #333;
+        }
+        /* Command history styles */
+        #history {
+            background: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            max-height: 100px;
+            overflow-y: auto;
+        }
+        .history-item {
+            padding: 5px;
+            cursor: pointer;
+            color: #888;
+        }
+        .history-item:hover {
+            background: #333;
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <header>
+            <h1>Mac Command Center</h1>
+        </header>
+
+        <!-- Command History Panel -->
+        <div id="history">
+            <div class="history-title">Recent Commands:</div>
+        </div>
+
+        <!-- Chat Panel for entering natural language commands -->
+        <div id="chat">
+            <input type="text" id="commandInput" placeholder="Enter command (e.g., 'disk space', 'memory', 'temperature')..." />
+            <button id="sendCommand">Send</button>
+        </div>
+
+        <!-- Terminal Panel to display real-time command output -->
+        <div id="terminal"></div>
+
+        <!-- Control Panel with status and stop button -->
+        <div id="controls">
+            <div id="status">Ready</div>
+            <button id="stopCommand">Stop Command</button>
+        </div>
+    </div>
+
+    <!-- Include Socket.io client library -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Connect to the Socket.io server
+        const socket = io();
+
+        // Get references to HTML elements
+        const commandInput = document.getElementById('commandInput');
+        const sendCommandBtn = document.getElementById('sendCommand');
+        const stopCommandBtn = document.getElementById('stopCommand');
+        const terminal = document.getElementById('terminal');
+        const status = document.getElementById('status');
+        const history = document.getElementById('history');
+
+        // Command history array
+        const commandHistory = [];
+        let historyIndex = -1;
+
+        // Function to append messages to the terminal panel with formatting
+        function appendToTerminal(message, type = 'output') {
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            
+            switch(type) {
+                case 'issued':
+                    entry.className = 'command-issued';
+                    entry.innerText = `[${timestamp}] ${message}`;
+                    break;
+                case 'error':
+                    entry.className = 'command-error';
+                    entry.innerText = message;
+                    break;
+                case 'finished':
+                    entry.className = 'command-finished';
+                    entry.innerText = `[${timestamp}] ${message}`;
+                    break;
+                default:
+                    entry.className = 'command-output';
+                    entry.innerText = message;
+            }
+            
+            terminal.appendChild(entry);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Function to add command to history
+        function addToHistory(command) {
+            if (command && !commandHistory.includes(command)) {
+                commandHistory.unshift(command);
+                if (commandHistory.length > 10) commandHistory.pop();
+                updateHistoryDisplay();
+            }
+        }
+
+        // Function to update history display
+        function updateHistoryDisplay() {
+            const historyHtml = commandHistory.map(cmd => 
+                `<div class="history-item" onclick="useHistoryCommand('${cmd}')">${cmd}</div>`
+            ).join('');
+            history.innerHTML = '<div class="history-title">Recent Commands:</div>' + historyHtml;
+        }
+
+        // Function to use command from history
+        function useHistoryCommand(command) {
+            commandInput.value = command;
+            commandInput.focus();
+        }
+
+        // Event listener for keyboard navigation
+        commandInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                sendCommandBtn.click();
+            } else if (e.key === 'ArrowUp') {
+                if (historyIndex < commandHistory.length - 1) {
+                    historyIndex++;
+                    commandInput.value = commandHistory[historyIndex];
+                }
+                e.preventDefault();
+            } else if (e.key === 'ArrowDown') {
+                if (historyIndex > -1) {
+                    historyIndex--;
+                    commandInput.value = historyIndex === -1 ? '' : commandHistory[historyIndex];
+                }
+                e.preventDefault();
+            }
+        });
+
+        // Event listener for send command button
+        sendCommandBtn.addEventListener('click', () => {
+            const command = commandInput.value.trim();
+            if (!command) return;
+            
+            status.innerText = 'Executing...';
+            status.style.color = '#ffaa00';
+            
+            addToHistory(command);
+            commandInput.value = '';
+            historyIndex = -1;
+            
+            fetch('/execute', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.error) {
+                    appendToTerminal(data.error, 'error');
+                    status.innerText = 'Error';
+                    status.style.color = '#ff0000';
+                }
+            })
+            .catch(err => {
+                appendToTerminal('Fetch error: ' + err.message, 'error');
+                status.innerText = 'Error';
+                status.style.color = '#ff0000';
+            });
+        });
+
+        // Event listener for stop command button
+        stopCommandBtn.addEventListener('click', () => {
+            fetch('/stop', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                appendToTerminal('Stop command issued.', 'finished');
+                status.innerText = 'Ready';
+                status.style.color = '#00ff00';
+            })
+            .catch(err => appendToTerminal('Fetch error: ' + err.message, 'error'));
+        });
+
+        // Socket.io event listeners
+        socket.on('commandIssued', (data) => {
+            appendToTerminal(`Command: ${data.command}\nExecuting: ${data.systemCommand}`, 'issued');
+        });
+
+        socket.on('commandOutput', (data) => {
+            appendToTerminal(data.data, data.type === 'stderr' ? 'error' : 'output');
+        });
+
+        socket.on('commandFinished', (data) => {
+            if (data.error) {
+                appendToTerminal('Error: ' + data.error, 'error');
+                status.innerText = 'Error';
+                status.style.color = '#ff0000';
+            } else {
+                appendToTerminal(`Command finished (code: ${data.code})`, 'finished');
+                status.innerText = 'Ready';
+                status.style.color = '#00ff00';
+            }
+        });
+
+        socket.on('commandStopped', (data) => {
+            appendToTerminal(data.message, 'finished');
+            status.innerText = 'Ready';
+            status.style.color = '#00ff00';
+        });
+    </script>
+</body>
+</html> 
