@@ -5,6 +5,9 @@
  and streams real-time output to connected clients using Socket.io.
 */
 
+// Load environment variables
+require('dotenv').config();
+
 // Import required modules
 const express = require('express');
 const http = require('http');
@@ -332,7 +335,6 @@ app.get('/status', async (req, res) => {
 // Set up Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('Client connected');
-    handleCommandOutput(socket);
 });
 
 // POST /execute endpoint: accepts a JSON payload with a natural language command
