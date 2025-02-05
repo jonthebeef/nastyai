@@ -14,6 +14,7 @@ const fs = require('fs');
 const config = require('./config');
 const rateLimit = require('express-rate-limit');
 const winston = require('winston');
+const { client: discordClient, handleCommandOutput } = require('./src/discord/bot');
 
 // Configure Winston logger
 const logger = winston.createLogger({
@@ -328,9 +329,15 @@ app.get('/status', async (req, res) => {
   }
 });
 
+// Set up Socket.io connection handling
+io.on('connection', (socket) => {
+    console.log('Client connected');
+    handleCommandOutput(socket);
+});
+
 // POST /execute endpoint: accepts a JSON payload with a natural language command
 app.post('/execute', (req, res) => {
-  const { command: naturalCommand } = req.body;
+  const { command: naturalCommand, source, messageId } = req.body;
   if (!naturalCommand) {
     return res.status(400).json({ error: 'Command is required' });
   }
@@ -350,7 +357,7 @@ app.post('/execute', (req, res) => {
     conn.exec(systemCommand, (err, stream) => {
       if (err) {
         console.error('Command execution error:', err);
-        io.emit('commandFinished', { error: err.message });
+        io.emit('commandFinished', { error: err.message, messageId });
         return res.status(500).json({ error: err.message });
       }
 
@@ -358,25 +365,25 @@ app.post('/execute', (req, res) => {
       currentSSHStream = stream; // store current stream for potential interruption
 
       // Emit an event indicating the command has been issued
-      io.emit('commandIssued', { command: naturalCommand, systemCommand });
+      io.emit('commandIssued', { command: naturalCommand, systemCommand, messageId });
 
       // Handle stream events
       stream.on('close', (code, signal) => {
         console.log('Command stream closed:', { code, signal });
-        io.emit('commandFinished', { code, signal });
+        io.emit('commandFinished', { code, signal, messageId });
         currentSSHConn = null;
         currentSSHStream = null;
         conn.end();
       }).on('data', (data) => {
         console.log('Command output:', data.toString());
         // Emit stdout data to connected clients
-        io.emit('commandOutput', { type: 'stdout', data: data.toString() });
+        io.emit('commandOutput', { type: 'stdout', data: data.toString(), messageId });
       });
 
       // Capture stderr data and emit to clients
       stream.stderr.on('data', (data) => {
         console.error('Command error output:', data.toString());
-        io.emit('commandOutput', { type: 'stderr', data: data.toString() });
+        io.emit('commandOutput', { type: 'stderr', data: data.toString(), messageId });
       });
 
       // Respond to the client that the command execution has begun
@@ -436,6 +443,15 @@ app.post('/stop', (req, res) => {
     return res.status(400).json({ error: 'No running command to stop' });
   }
 });
+
+// Initialize Discord bot if token is provided
+if (config.discord && config.discord.token) {
+  discordClient.login(config.discord.token)
+    .then(() => console.log('Discord bot connected'))
+    .catch(err => console.error('Discord bot connection error:', err));
+} else {
+  console.log('No Discord token provided, bot integration disabled');
+}
 
 // Start the server on the configured port
 server.listen(config.port, () => {

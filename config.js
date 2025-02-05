@@ -17,5 +17,17 @@ module.exports = {
 
     // Path to the private key file used for authentication
     privateKey: process.env.SSH_PRIVATE_KEY || '/Users/jongrant/.ssh/id_rsa'
+  },
+
+  // Discord bot configuration
+  discord: {
+    // Discord bot token from Discord Developer Portal
+    token: process.env.DISCORD_TOKEN,
+
+    // Command prefix for bot commands (default: !)
+    prefix: process.env.DISCORD_PREFIX || '!',
+
+    // Optional: List of allowed Discord channel IDs (empty array means all channels)
+    allowedChannels: (process.env.DISCORD_CHANNELS || '').split(',').filter(Boolean)
   }
 }; 
