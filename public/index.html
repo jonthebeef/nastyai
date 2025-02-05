@@ -143,12 +143,85 @@
             background: #333;
             color: #fff;
         }
+        /* Command suggestions styles */
+        #suggestions {
+            position: absolute;
+            width: calc(100% - 120px);
+            max-height: 200px;
+            overflow-y: auto;
+            background: #2d2d2d;
+            border: 1px solid #444;
+            border-radius: 4px;
+            margin-top: 2px;
+            display: none;
+            z-index: 1000;
+        }
+        .suggestion {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #444;
+        }
+        .suggestion:hover {
+            background: #3d3d3d;
+        }
+        .suggestion .category {
+            color: #888;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            #container {
+                padding: 10px;
+            }
+            #commandInput {
+                width: calc(100% - 70px);
+                font-size: 16px; /* Prevent zoom on mobile */
+            }
+            #sendCommand {
+                width: 60px;
+                font-size: 14px;
+            }
+            #suggestions {
+                width: calc(100% - 70px);
+            }
+            #terminal {
+                font-size: 14px;
+            }
+            .history-item {
+                padding: 8px;
+                font-size: 14px;
+            }
+        }
+
+        /* Theme toggle */
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+        /* Light theme */
+        body.light-theme {
+            background: #f0f0f0;
+            color: #333;
+        }
+        body.light-theme #terminal {
+            background: #fff;
+            color: #333;
+        }
+        body.light-theme header,
+        body.light-theme #chat,
+        body.light-theme #controls {
+            background: #fff;
+        }
     </style>
 </head>
 <body>
     <div id="container">
         <header>
             <h1>Mac Command Center</h1>
+            <button class="theme-toggle" onclick="toggleTheme()">Toggle Theme</button>
         </header>
 
         <!-- Command History Panel -->
@@ -156,16 +229,19 @@
             <div class="history-title">Recent Commands:</div>
         </div>
 
-        <!-- Chat Panel for entering natural language commands -->
+        <!-- Chat Panel with Suggestions -->
         <div id="chat">
-            <input type="text" id="commandInput" placeholder="Enter command (e.g., 'disk space', 'memory', 'temperature')..." />
-            <button id="sendCommand">Send</button>
+            <div class="input-wrapper">
+                <input type="text" id="commandInput" placeholder="Enter command (e.g., 'disk space', 'memory', 'temperature')..." />
+                <button id="sendCommand">Send</button>
+            </div>
+            <div id="suggestions"></div>
         </div>
 
-        <!-- Terminal Panel to display real-time command output -->
+        <!-- Terminal Panel -->
         <div id="terminal"></div>
 
-        <!-- Control Panel with status and stop button -->
+        <!-- Control Panel -->
         <div id="controls">
             <div id="status">Ready</div>
             <button id="stopCommand">Stop Command</button>
@@ -329,6 +405,75 @@
             status.innerText = 'Ready';
             status.style.color = '#00ff00';
         });
+
+        // Command suggestions system
+        const commandCategories = {
+            'system': ['status', 'uptime', 'monitor'],
+            'storage': ['disk space', 'disk list', 'smart status', 'raid status'],
+            'memory': ['ram', 'memory'],
+            'temperature': ['temp', 'watch temps'],
+            'network': ['ip', 'network', 'ports', 'wifi status', 'tailscale status'],
+            'docker': ['docker ps', 'docker images', 'docker status'],
+            'files': ['ls', 'pwd'],
+            'shares': ['share status'],
+            'power': ['shutdown', 'reboot'],
+            'hardware': ['pi hardware', 'eeprom status'],
+            'services': ['printers', 'cron list', 'time sync', 'bluetooth status']
+        };
+
+        const suggestionsDiv = document.getElementById('suggestions');
+
+        function showSuggestions(input) {
+            const inputLower = input.toLowerCase();
+            let matches = [];
+
+            for (const [category, commands] of Object.entries(commandCategories)) {
+                commands.forEach(cmd => {
+                    if (cmd.includes(inputLower)) {
+                        matches.push({ command: cmd, category });
+                    }
+                });
+            }
+
+            if (matches.length > 0 && input.length > 0) {
+                suggestionsDiv.innerHTML = matches
+                    .map(m => `<div class="suggestion" onclick="useCommand('${m.command}')">
+                                ${m.command}<span class="category">${m.category}</span>
+                             </div>`)
+                    .join('');
+                suggestionsDiv.style.display = 'block';
+            } else {
+                suggestionsDiv.style.display = 'none';
+            }
+        }
+
+        function useCommand(command) {
+            commandInput.value = command;
+            suggestionsDiv.style.display = 'none';
+            commandInput.focus();
+        }
+
+        commandInput.addEventListener('input', (e) => {
+            showSuggestions(e.target.value);
+        });
+
+        // Hide suggestions when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#chat')) {
+                suggestionsDiv.style.display = 'none';
+            }
+        });
+
+        // Theme toggle
+        function toggleTheme() {
+            document.body.classList.toggle('light-theme');
+            localStorage.setItem('theme', document.body.classList.contains('light-theme') ? 'light' : 'dark');
+        }
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'light') {
+            document.body.classList.add('light-theme');
+        }
     </script>
 </body>
 </html> 

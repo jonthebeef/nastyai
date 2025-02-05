@@ -12,10 +12,49 @@ const socketIo = require('socket.io');
 const { Client } = require('ssh2');
 const fs = require('fs');
 const config = require('./config');
+const rateLimit = require('express-rate-limit');
+const winston = require('winston');
+
+// Configure Winston logger
+const logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [
+    new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'logs/combined.log' }),
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
+    })
+  ]
+});
+
+// Configure rate limiter
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later',
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+// Command execution timeout (5 minutes)
+const COMMAND_TIMEOUT = 5 * 60 * 1000;
+
+// Track command execution times
+const commandHistory = new Map();
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
+
+// Apply rate limiter to all routes
+app.use(limiter);
 
 // Middleware to parse JSON bodies
 app.use(express.json());
