@@ -78,10 +78,57 @@ socket.on('commandFinished', async (data) => {
     command.status = 'completed';
     if (data.error) {
         command.output.push(`Error: ${data.error}`);
+        await updateCommandMessage(data.messageId);
+        activeCommands.delete(data.messageId);
     }
+    // Update command output message with completion status
     await updateCommandMessage(data.messageId);
-    // Don't delete the command immediately to allow the final message to be sent
-    setTimeout(() => activeCommands.delete(data.messageId), 1000);
+});
+
+socket.on('commandAnalysis', async (data) => {
+    console.log('Command analysis event:', data);
+    if (!data.messageId || !activeCommands.has(data.messageId)) {
+        console.log('No active command found for messageId:', data.messageId);
+        return;
+    }
+
+    const command = activeCommands.get(data.messageId);
+    
+    try {
+        if (data.error) {
+            await command.message.channel.send('❌ Analysis Error: ' + data.error);
+        } else {
+            const analysis = data.analysis;
+            let analysisMessage = `${analysis.summary}\n`;
+            
+            // Add concerns if any
+            if (analysis.concerns && analysis.concerns.length > 0) {
+                analysisMessage += '\n⚠️ **Concerns:**';
+                analysis.concerns.forEach(concern => {
+                    analysisMessage += `\n• ${concern}`;
+                });
+            }
+            
+            // Add recommendations if any
+            if (analysis.recommendations && analysis.recommendations.length > 0) {
+                analysisMessage += '\n\n💡 **Recommendations:**';
+                analysis.recommendations.forEach(rec => {
+                    analysisMessage += `\n• ${rec}`;
+                });
+            }
+            
+            // Add details if present
+            if (analysis.details) {
+                analysisMessage += `\n\n${analysis.details}`;
+            }
+            
+            await command.message.channel.send(analysisMessage);
+        }
+    } catch (error) {
+        console.error('Error sending analysis message:', error);
+    }
+    
+    activeCommands.delete(data.messageId);
 });
 
 // Handle messages
@@ -128,26 +175,24 @@ function handleCommandOutput(socket) {
 
 // Update Discord message with command output
 async function updateCommandMessage(messageId) {
-    console.log('Updating message for ID:', messageId);  // Debug log
+    console.log('Updating message for ID:', messageId);
     const command = activeCommands.get(messageId);
     if (!command) {
-        console.log('No command found for update');  // Debug log
+        console.log('No command found for update');
         return;
     }
 
     try {
         // Format output with code blocks and status
-        const status = command.status === 'processing' ? '🔄' : 
-                      command.status === 'completed' ? '✅' : '⚠️';
+        const status = command.status === 'processing' ? '🔄' : '✅';
         
         // Join all output lines, but limit total length to avoid Discord's message limit
         let output = command.output.join('\n');
-        if (output.length > 1900) {  // Discord has a 2000 character limit
+        if (output.length > 1900) {
             output = output.slice(-1900) + '\n... (output truncated)';
         }
 
         const content = `${status} Command Output:\n\`\`\`\n${output}\n\`\`\``;
-        console.log('Updating Discord message with content:', content);  // Debug log
         await command.message.edit(content);
     } catch (error) {
         console.error('Error updating Discord message:', error);

@@ -51,7 +51,27 @@ Provide your response in the following JSON format:
   "context": {"relevant context for future"}
 }`;
 
+const RESULT_ANALYSIS_TEMPLATE = `Analyze the following command output and provide insights about the system's state.
+
+Original Request: {{input}}
+Command Executed: {{command}}
+
+Command Output:
+{{output}}
+
+Provide your analysis in the following JSON format:
+{
+  "analysis": {
+    "summary": "Brief summary of findings",
+    "concerns": ["List of concerns if any"],
+    "recommendations": ["List of recommendations if needed"],
+    "details": "Detailed explanation of the analysis"
+  },
+  "confidence": 0.95
+}`;
+
 module.exports = {
     SYSTEM_PROMPT,
-    COMMAND_TRANSLATION_TEMPLATE
+    COMMAND_TRANSLATION_TEMPLATE,
+    RESULT_ANALYSIS_TEMPLATE
 };
